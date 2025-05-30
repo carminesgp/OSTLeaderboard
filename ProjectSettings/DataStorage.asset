@@ -1,0 +1,88 @@
+{
+  "_tag": {
+    "type": "ff.DataStorage",
+    "resourceId": "DataStorage"
+  },
+  "_entityId": "rYdjFb3n",
+  "children": [],
+  "prefabVariant": null,
+  "activeValue": null,
+  "unlockedValue": null,
+  "editorLockValue": false,
+  "editorVisibleValue": true,
+  "modId": 31,
+  "storageOpen": true,
+  "rankSheets": [
+    {
+      "sheetOrder": 1,
+      "sheetName": "TotalScoreA",
+      "sheetId": "k8ObGD64",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 1,
+      "sheetName": "TotalScoreB",
+      "sheetId": "1O9ef3fh",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level1TimeA",
+      "sheetId": "p7UcRGQs",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level1TimeB",
+      "sheetId": "llj0CUJV",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level2TimeA",
+      "sheetId": "cprcAUGo",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level2TimeB",
+      "sheetId": "D2IAvI5X",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level3TimeA",
+      "sheetId": "ZJATPyYL",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level3TimeB",
+      "sheetId": "Jxl0N4x9",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level4TimeA",
+      "sheetId": "OHJqGOJo",
+      "type": "Int"
+    },
+    {
+      "sheetOrder": 0,
+      "sheetName": "Level4TimeB",
+      "sheetId": "Sw2xugfC",
+      "type": "Int"
+    }
+  ],
+  "dataSheets": [
+    {
+      "sheetName": "DataList",
+      "sheetId": "tSpld4d5",
+      "type": "ListT_BaseData"
+    }
+  ],
+  "statisticalSheets": [],
+  "_entityName": "T_43_YU_WS_MODULE_DATABASE",
+  "showSwitch": true
+}
+//"{FE:{"v":"1.13.3693570","c":{"FF":4901},"s":100}

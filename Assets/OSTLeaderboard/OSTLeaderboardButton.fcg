@@ -1,0 +1,12 @@
+import "StdLibrary.fcc" as StdLib
+import "EditorGenLib.fcc" as EditorLib
+import "Hud.fcc" as Hud
+
+import "./OSTLeaderboard.fcg" as OSTLeaderboard
+
+graph OSTLeaderboardButton {
+    event OnTapped(player entity<Player>) {
+        var UUID = player<Player>.UserUID
+        globalEntity<OSTLeaderboard>.handle_leaderboard_switch_visible(UUID)
+    }
+}

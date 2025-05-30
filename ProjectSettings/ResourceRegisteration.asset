@@ -1,0 +1,99 @@
+{
+  "_tag": {
+    "type": "ResourceRegisteration"
+  },
+  "_entityId": "p66moC3Z",
+  "Resource": {
+    "ui": {
+      "id": "ui",
+      "children": [
+        {
+          "refer": {
+            "fileId": "5b56d906-c3f2-4599-9f72-43c31530d5e2",
+            "filePath": "Assets\\OSTLeaderboard\\OSTLeaderboard.ui",
+            "_tag": {
+              "type": "GFileRefer"
+            },
+            "fileType": "ui"
+          },
+          "scriptName": "OSTLeaderboard",
+          "children": []
+        }
+      ]
+    },
+    "scene": {
+      "id": "scene",
+      "children": []
+    },
+    "prefab": {
+      "id": "prefab",
+      "children": []
+    },
+    "ugcscript": {
+      "id": "ugcscript",
+      "children": []
+    },
+    "eca": {
+      "id": "eca",
+      "children": []
+    },
+    "texture": {
+      "id": "texture",
+      "children": []
+    },
+    "effecttype": {
+      "id": "effecttype",
+      "children": []
+    },
+    "sound": {
+      "id": "sound",
+      "children": []
+    },
+    "fitem": {
+      "id": "fitem",
+      "children": []
+    },
+    "fScenePrefab": {
+      "id": "fScenePrefab",
+      "children": []
+    },
+    "clothskin": {
+      "id": "clothskin",
+      "children": []
+    },
+    "weaponskin": {
+      "id": "weaponskin",
+      "children": []
+    },
+    "vehicleskin": {
+      "id": "vehicleskin",
+      "children": []
+    },
+    "emoteskin": {
+      "id": "emoteskin",
+      "children": []
+    },
+    "csv": {
+      "id": "csv",
+      "children": []
+    },
+    "internalhudtype": {
+      "id": "internalhudtype",
+      "children": []
+    },
+    "textureResource": {
+      "id": "textureResource",
+      "children": []
+    },
+    "mesh": {
+      "id": "mesh",
+      "children": []
+    },
+    "material": {
+      "id": "material",
+      "children": []
+    }
+  },
+  "children": []
+}
+//"{FE:{"v":"1.13.3693570","c":{"FF":4901},"s":100}

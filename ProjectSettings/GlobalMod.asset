@@ -1,0 +1,79 @@
+{
+  "_tag": {
+    "type": "ff.global",
+    "resourceId": "Global"
+  },
+  "_entityId": "LEv3TJPL",
+  "children": [],
+  "prefabVariant": null,
+  "activeValue": {
+    "selfValue": true,
+    "valueTag": "activeValue"
+  },
+  "unlockedValue": {
+    "selfValue": true,
+    "valueTag": "unlockedValue"
+  },
+  "editorLockValue": false,
+  "editorVisibleValue": true,
+  "modId": 39,
+  "DisableReconnect": false,
+  "RecommendStartGameNumber": 4,
+  "EnableHalfwayJoin": false,
+  "EnableHalfwayJoinEffectTime": true,
+  "HalfwayJoinEffectTime": 120,
+  "HalfwayJoinNumber": 5,
+  "HalfwayJoinNumberLimit": true,
+  "EnableFreeQuit": false,
+  "PriorityFullStartMatch": true,
+  "AllowHangUpTime": 20,
+  "EnableRuntimeDynamicNavMesh": false,
+  "ReduceLogicFrame": true,
+  "EnableHackCheck": false,
+  "CustomMatchResult": true,
+  "modOpen": true,
+  "ecaProps": {
+    "Global": {
+      "PlayerRoundRankingRuleScoreType": [],
+      "PlayerRoundRankingRuleSortType": [],
+      "TeamRoundRankingRuleScoreType": [],
+      "TeamRoundRankingRuleSortType": [],
+      "MVPRuleScoreType": [],
+      "MVPRuleScoreWeight": [],
+      "RoundRankToScoreMap": [],
+      "ScoreTypeToShowResult": [],
+      "TeamRankAccumulateScoreType": 0,
+      "TeamRankAccumulateScoreOrder": 0,
+      "PlayerRankAccumulateScoreType": 0,
+      "PlayerRankAccumulateScoreOrder": 0,
+      "EcoRoundMoney": 0,
+      "EcoKillMoney": 0,
+      "EcoWinMoney": 0,
+      "CoinHudShow": false,
+      "SkyboxEnv": null
+    },
+    "Entity": {},
+    "Component": {}
+  },
+  "globalGraphs": [
+    {
+      "fileId": "nxhc5c0scu8-maxjs859-6dye93rinfq",
+      "filePath": "Assets\\OSTLeaderboard\\OSTLeaderboard.fcg",
+      "_tag": {
+        "type": "GFileRefer"
+      },
+      "fileType": "ugcscript"
+    },
+    {
+      "fileId": "51y0g68as6u-mb936bzp-bav8nm45j3",
+      "filePath": "Assets\\Script\\Script.fcg",
+      "_tag": {
+        "type": "GFileRefer"
+      },
+      "fileType": "ugcscript"
+    }
+  ],
+  "_entityName": "T_43_YU_WS_MODULE_GLOBAL",
+  "showSwitch": false
+}
+//"{FE:{"v":"1.13.3693570","c":{"FF":4901},"s":100}

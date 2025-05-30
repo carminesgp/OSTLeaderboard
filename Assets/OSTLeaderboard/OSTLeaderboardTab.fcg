@@ -1,0 +1,20 @@
+import "StdLibrary.fcc" as StdLib
+import "EditorGenLib.fcc" as EditorLib
+import "Hud.fcc" as Hud
+
+import "./OSTLeaderboard.fcg" as OSTLeaderboard
+import "Convert.fcc" as Convert
+
+graph OSTLeaderboardTab {
+    event OnTapped(player entity<Player>) {
+        var UUID = player<Player>.UserUID
+        var parent = GetParent(thisEntity) as entity<Entity>
+        var tab_name string = parent<Entity>.Name
+        StringToInt(tab_name, out var tab_index, out var success)
+        if !success {
+            LogError("[OSTLeaderboardTab] Failed to convert tab_name to int tab_name=" + tab_name)
+            return
+        }
+        globalEntity<OSTLeaderboard>.handle_tab_pressed(UUID, tab_index)
+    }
+}

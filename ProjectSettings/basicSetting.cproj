@@ -1,0 +1,22 @@
+{
+  "name": "OSTLeaderboard",
+  "nameLocKey": "",
+  "description": "",
+  "descriptionLocKey": "",
+  "subTitleId": 22,
+  "showTags": [],
+  "typeTags": [
+    22
+  ],
+  "showNewTag": false,
+  "customShot": null,
+  "lang": 1,
+  "locCsvPath": "Assets\\Localization\\key.csv",
+  "defaultShot": 0,
+  "customShotSize": 0,
+  "enable_static_combine": false,
+  "enable_dynamic_combine": true,
+  "enable_loadArea": false,
+  "enable_customNavmesh": false
+}
+//"{FE:{"v":"1.13.3693570","c":{"FF":4901},"s":100}

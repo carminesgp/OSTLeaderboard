@@ -1,0 +1,754 @@
+// OSTLeaderboard
+// Version 1.0.0.2
+
+// 概要
+// 1.提供API供写入玩家分数和实时查询
+// 2.进入游戏后自动拉取服务器数据，本地即时更新，之后适时上传回服务器
+// 3.自动轮换排行榜（AB榜切换实现清空排行榜）
+// 4.提供默认UI实体，用于显示排行榜
+
+// 使用说明见 README.md
+
+import "StdLibrary.fcc" as StdLib
+import "EditorGenLib.fcc" as EditorLib
+import "Hud.fcc" as Hud
+import "Player.fcc" as Player
+import "Database.fcc" as Database
+import "List.fcc" as List
+import "Map.fcc" as Map
+import "Convert.fcc" as Convert
+import "LevelObject.fcc" as LevelObject
+import "Workflow.fcc" as Workflow
+import "Strings.fcc" as Strings
+import "Math.fcc" as Math
+
+graph Script {
+    // ================ 配置常量 ================
+    // 请手动配置
+    // 数据版本号，用于检查数据是否过期（如果过期，则重置数据）
+    VERSION int = 1
+    
+    // 周期时长，24h
+    PERIOD_DURATION int = 86400
+    // 周期偏移，2025-01-01 10:00:00 GMT+8
+    PERIOD_OFFSET int = -1735696800
+    
+    // 普通数据表名称，用于储存玩家分数数据，数据结构为: {(0)版本号, (1)入局时间, (2)玩家昵称, (3)rank 0 分数, (4)rank 1 分数, (5)rank 2 分数, (6)rank 3 分数, (7)rank 4 分数}
+    DATA_TABLE string = "DataList"
+    // 普通数据中储存玩家分数数据的键名
+    DATA_KEY string = "Data"
+
+    // 排行榜1的AB表名
+    RANK_TABLE_NAME_0A string = "TotalScoreA"
+    RANK_TABLE_NAME_0B string = "TotalScoreB"
+    // 排序设置，为true时，最小的在第一位
+    RANK_TABLE_ASCENDING_0 bool = false
+    RANK_TABLE_DISPLAY_FORMAT_0 int = 0
+
+    // 排行榜2的AB表名
+    RANK_TABLE_NAME_1A string = "Level1TimeA"
+    RANK_TABLE_NAME_1B string = "Level1TimeB"
+    // 排序设置
+    RANK_TABLE_ASCENDING_1 bool = true
+    RANK_TABLE_DISPLAY_FORMAT_1 int = 1
+    
+    // 排行榜3的AB表名
+    RANK_TABLE_NAME_2A string = "Level2TimeA"
+    RANK_TABLE_NAME_2B string = "Level2TimeB"
+    // 排序设置
+    RANK_TABLE_ASCENDING_2 bool = true
+    RANK_TABLE_DISPLAY_FORMAT_2 int = 1
+
+    // 排行榜4的AB表名
+    RANK_TABLE_NAME_3A string = "Level3TimeA"
+    RANK_TABLE_NAME_3B string = "Level3TimeB"
+    // 排序设置
+    RANK_TABLE_ASCENDING_3 bool = true
+    RANK_TABLE_DISPLAY_FORMAT_3 int = 1
+
+    // 排行榜5的AB表名
+    RANK_TABLE_NAME_4A string = "Level4TimeA"
+    RANK_TABLE_NAME_4B string = "Level4TimeB"
+    // 排序设置
+    RANK_TABLE_ASCENDING_4 bool = true
+    RANK_TABLE_DISPLAY_FORMAT_4 int = 1
+
+    // 自动上传数据 Phase Index
+    AUTO_UPLOAD_PHASE_INDEX List<int> = List<int>{
+        4057,
+    }
+
+    // ================ 常量定义 ================
+    // 排行榜表名列表，每种分数类型对应两个表，A榜和B榜
+    RANK_TABLE_NAMES List<List<string>>
+    // 排行榜表排序设置列表
+    RANK_TABLE_ASCENDING List<bool>
+    // 排行榜表显示格式列表
+    RANK_TABLE_DISPLAY_FORMAT List<int>
+
+    // ================ 全局变量 ================
+    // 是否已经初始化
+    is_initialized bool
+    // 此房间开局时间
+    server_timestamp int = -1
+    // 日志缓存
+    log_cache List<string>
+
+    // 玩家UUID到玩家实体的映射
+    id2player Map<UUID, entity<Player>> = Map<UUID, entity<Player>>{}
+    // UI实体
+    id2ui Map<UUID, entity> = Map<UUID, entity>{}
+    // 玩家UUID到名字的映射
+    id2name Map<UUID, string> = Map<UUID, string>{}
+    // 记录玩家分数，用 "{UUID}|{分数类型}" 作为key，例如 "1001|time"
+    id2score Map<string, int> = Map<string, int>{}
+    // 记录玩家入局时间，用 UUID 作为key
+    id2timestamp Map<UUID, int> = Map<UUID, int>{}
+    // 记录玩家当前选择的tab index，用 UUID 作为key
+    id2tab_index Map<UUID, int> = Map<UUID, int>{}
+
+
+    // 对本地数据进行排序，产生实时更新的效果
+    rank_lists Map<string, List<UUID>>
+
+    // 是否需要排序，用于优化排序次数
+    _list_need_sort Map<string, bool>
+
+    // ================ 对接UGC事件 =================
+    event OnAwake() {
+        log_cache = List<string>{"[INFO]Log cache started"}
+
+        // 【step0】初始化数据
+        is_initialized = false
+
+        RANK_TABLE_NAMES = List<List<string>>{
+            List<string>{RANK_TABLE_NAME_0A, RANK_TABLE_NAME_0B},
+            List<string>{RANK_TABLE_NAME_1A, RANK_TABLE_NAME_1B},
+            List<string>{RANK_TABLE_NAME_2A, RANK_TABLE_NAME_2B},
+            List<string>{RANK_TABLE_NAME_3A, RANK_TABLE_NAME_3B},
+            List<string>{RANK_TABLE_NAME_4A, RANK_TABLE_NAME_4B},
+        }
+
+        RANK_TABLE_ASCENDING = List<bool>{
+            RANK_TABLE_ASCENDING_0,
+            RANK_TABLE_ASCENDING_1,
+            RANK_TABLE_ASCENDING_2,
+            RANK_TABLE_ASCENDING_3,
+            RANK_TABLE_ASCENDING_4,
+        }
+
+        RANK_TABLE_DISPLAY_FORMAT = List<int>{
+            RANK_TABLE_DISPLAY_FORMAT_0,
+            RANK_TABLE_DISPLAY_FORMAT_1,
+            RANK_TABLE_DISPLAY_FORMAT_2,
+            RANK_TABLE_DISPLAY_FORMAT_3,
+            RANK_TABLE_DISPLAY_FORMAT_4,
+        }
+
+        rank_lists = Map<int, List<UUID>>{
+            0: List<UUID>{},
+            1: List<UUID>{},
+            2: List<UUID>{},
+            3: List<UUID>{},
+            4: List<UUID>{},
+        }
+
+        _list_need_sort = Map<int, bool>{
+            0: false,
+            1: false,
+            2: false,
+            3: false,
+            4: false,
+        }
+
+        // 【step1】初始化AB榜
+        server_timestamp = GetServerTimestamp()
+        var AB_index int = period_AB_index(server_timestamp)
+        var phase int = period_phase(server_timestamp)
+        List.Append(log_cache, "[INFO][OnAwake] Server timestamp=" + ToString(server_timestamp) + " AB_index=" + ToString(AB_index) + " phase=" + ToString(phase))
+
+        var ids_to_download List<UUID> = List<UUID>{}
+        var keys_to_download List<string> = List<string>{}
+        
+        // 【step2】拉取头部排行榜数据
+        for index, table_names in RANK_TABLE_NAMES {
+            var table_name string = table_names[AB_index]
+            List.Append(log_cache, "[INFO][OnAwake] Downloading rank table=" + table_name)
+            ReadFromLeaderboardDataStoreByRank(table_name, 1, 10, out var res, "", out var err)
+            if err != StatusCode.NoError {
+                List.Append(log_cache, "ERROR: [OnAwake][ReadFromLeaderboardDataStoreByRank] error: " + ToString(err))
+                continue
+            }
+            
+            var data = res as List<List<object>>
+            for rank, item in data {
+                var player_id UUID = item[1] as UUID
+                var score int = item[2] as int
+                List.Append(log_cache, "[INFO][OnAwake] Got rank="+ ToString(rank) +" id=" + ToString(player_id) + " score=" + ToString(score))
+
+                // 添加到将要下载数据的列表
+                if !List.Contain(ids_to_download, player_id) {
+                    List.Append(ids_to_download, player_id)
+                    List.Append(keys_to_download, DATA_KEY)
+                }
+                
+                // 在rank_lists中添加id
+                var score_type int = index
+                if !List.Contain(rank_lists[score_type], player_id) {
+                    List.Append(rank_lists[score_type], player_id)
+                } else {
+                    List.Append(log_cache, "[ERROR][OnAwake] Duplicated UUID found in rank_lists rank=" + ToString(rank) + " id=" + ToString(player_id))
+                }
+            }
+        }
+
+        // 【step3】拉取头部排行榜中玩家数据
+        List.Append(log_cache, "[INFO][OnAwake] Batch downloading " + ToString(List.Length(keys_to_download)) + " player data")
+        BatchReadDBSheetValue(DATA_TABLE, ids_to_download, keys_to_download, out var res_list, "", out var err_list)
+        
+        // 【BUG】BatchReadDBSheetValue 读取1数据时会直接返回一维列表，而不是二维列表，所以此处进行检查并特殊处理
+        // DEBUG 测试检查返回的数据格式
+        // List.Append(log_cache, "[DEBUG] res_list=" + ToString(res_list))
+        // for index, data in res_list {
+        //     List.Append(log_cache, "[DEBUG] index:" + ToString(index) + " data:" + ToString(data))
+        // }
+        if List.Length(ids_to_download) == 1 {
+            List.Append(log_cache, "[WARNING][OnAwake] BatchReadDBSheetValue only 1 read, now amending data=" + ToString(res_list))
+            res_list = List<object>{res_list}
+        }
+        
+        for i = 0, List.Length(res_list), 1 {
+            var err = err_list[i] as StatusCode
+            if err != StatusCode.NoError {
+                List.Append(log_cache, "[ERROR][OnAwake] BatchReadDBSheetValue error: " + ToString(err))
+                continue
+            }
+            var res = res_list[i] as List<object>
+            // 将服务器数据导入为本地数据
+            data_parse_save(ids_to_download[i], res)
+        }
+
+        List.Append(log_cache, "[INFO][OnAwake] Initialized")
+        is_initialized = true
+
+        // 删除另一个AB榜的数据
+        WaitForMillisecond(60 * 1000)   
+        for i = 0, 12, 1 {
+            for index, table_names in RANK_TABLE_NAMES {
+                var current_timestamp int = GetServerTimestamp()
+                var current_AB_index int = period_AB_index(current_timestamp)
+                var other_AB_index int = 1 - current_AB_index
+                var table_name string = table_names[other_AB_index]
+                LogInfo("[OSTLeaderboard] Removing rank data from table=" + table_name)
+                RemoveFromLeaderboardDataStoreByRank(table_name, 1, "", out var err)
+                WaitForMillisecond(60 * 1000)
+            }
+        }
+    }
+
+    event OnPlayerJoin(player entity<Player>) {
+        // 输出所有日志
+        for i = 0, List.Length(log_cache), 1 {
+            LogInfo("[OSTLeaderboard] " + log_cache[i])
+        }
+        
+        // 等待初始化完成
+        while !is_initialized {
+            WaitForMillisecond(500)
+        }
+
+        // 获取玩家UUID
+        var player_id UUID = player<Player>.UserUID
+        id2player[player_id] = player
+        id2name[player_id] = player<Player>.NickName
+        LogInfo("[OSTLeaderboard] Player join UUID=" + ToString(player_id))
+        
+        // 玩家入局时刷新时间戳
+        var current_timestamp int = GetServerTimestamp()
+        id2timestamp[player_id] = current_timestamp
+        var my_phase int = period_phase(current_timestamp)
+        LogInfo("[OSTLeaderboard] Player join timestamp=" + ToString(current_timestamp) + " phase=" + ToString(my_phase))
+        
+        // 将玩家添加到rank_lists中
+        for index = 0, List.Length(RANK_TABLE_NAMES), 1 {
+            if !List.Contain(rank_lists[index], player_id) {
+                List.Append(rank_lists[index], player_id)
+            }
+        }
+
+        // 创建UI
+        CreateCustomUI(out var ui, player, EResUI.OSTLeaderboard)
+        id2ui[player_id] = ui
+        WaitForNextFrame()
+        ui_set_visible(player_id, false)
+    }
+    
+    event OnPlayerQuit(player entity<Player>) {
+        player_upload_data(player)
+    }
+
+    event OnPhaseStart(phase entity<Phase>) {
+        if List.IndexOf(AUTO_UPLOAD_PHASE_INDEX, phase<Phase>.Index) != -1 {
+            for index, player in GetAllPlayers() {
+                player_upload_data(player)
+            }
+        }
+    }
+
+    // ================ 辅助函数 ================
+    // 计算AB榜索引
+    func period_AB_index(timestamp int) int {
+        return ((timestamp + PERIOD_OFFSET) / PERIOD_DURATION) % 2
+    }
+
+    // 获取当前周期
+    func period_phase(timestamp int) int {
+        return (timestamp + PERIOD_OFFSET) / PERIOD_DURATION
+    }
+
+    // 将服务器数据导入为本地数据
+    func data_parse_save(id UUID, data List<object>) {
+        var version int = data[0] as int
+        
+        var my_timestamp int = data[1] as int
+        var my_period int = period_phase(my_timestamp)
+        var server_period int = period_phase(server_timestamp)
+        
+        var nickname string = data[2] as string
+        id2name[id] = nickname
+        
+        // 获取分数数据
+        var score_data List<int> = List<int>{}
+        for index = 0, List.Length(RANK_TABLE_NAMES), 1 {
+            var score int = data[3 + index] as int
+            List.Append(score_data, score)
+        }
+        
+        var need_reset_data bool = false
+        
+        // 检查数据格式
+        if data == nil || List.Length(data) < 8 {
+            List.Append(log_cache, "[ERROR][data_parse_save] Invalid data format for id=" + ToString(id) + " data=" + ToString(data))
+            nickname = ""
+            need_reset_data = true
+        }
+        
+        // 检查版本是否过期
+        if version != VERSION {
+            List.Append(log_cache, "[WARNING][data_parse_save] Version mismatch, my=" + ToString(version) + " server=" + ToString(VERSION))
+            need_reset_data = true
+        }
+        
+        // 检查时间戳是否过期
+        if my_period != server_period {
+            List.Append(log_cache, "[WARNING][data_parse_save] Period mismatch, my=" + ToString(my_period) + " server=" + ToString(server_period))
+            need_reset_data = true
+        }
+
+        // 如果需要重置数据，则将数据重置为默认
+        if need_reset_data {
+            List.Append(log_cache, "[WARNING][data_parse_save] Reset data for id=" + ToString(id))
+            for index = 0, List.Length(RANK_TABLE_NAMES), 1 {
+                player_score_reset(id, index)
+            }
+        } else {
+            for index = 0, List.Length(RANK_TABLE_NAMES), 1 {
+                var score int = score_data[index]
+                player_score_set(id, index, score)
+            }
+        }
+
+        List.Append(log_cache, "[INFO][data_parse_save] Succeeded, id=" + ToString(id) + " nickname=" + nickname)
+    }
+
+    // 上传玩家数据
+    func data_table_upload(player_id UUID, version int, timestamp int, nickname string, score_0 int, score_1 int, score_2 int, score_3 int, score_4 int) {
+        var data = List<object>{
+            version,
+            timestamp,
+            nickname,
+            score_0,
+            score_1,
+            score_2,
+            score_3,
+            score_4,
+        }
+        WriteToDataStore(DATA_TABLE, player_id, DATA_KEY, data, "", out var err)
+        if err != StatusCode.NoError {
+            LogError("[OSTLeaderboard] WriteToDataStore error=" + ToString(err))
+        }
+        LogInfo("[OSTLeaderboard] WriteToDataStore succeeded, player_id=" + ToString(player_id) + " scores=" + ToString(score_0) + " " + ToString(score_1) + " " + ToString(score_2) + " " + ToString(score_3) + " " + ToString(score_4))
+    }
+
+    // 上传排行榜数据，单个分数类型
+    func data_upload_rank(player_id UUID, score_type int, score int, AB_index int) {
+        var table_name string = RANK_TABLE_NAMES[score_type][AB_index]
+        if score_type < 0 || score_type >= List.Length(RANK_TABLE_NAMES) {
+            LogError("[OSTLeaderboard] Score type not found=" + ToString(score_type))
+            return
+        }
+
+        WriteToLeaderboardDataStore(table_name, ToString(player_id), score, "", out var err)
+        if err != StatusCode.NoError {
+            LogError("[OSTLeaderboard] WriteToLeaderboardDataStore table_name=" + table_name + " id=" + ToString(player_id) + " score=" + ToString(score) + " error=" + ToString(err))
+        } else {
+            LogInfo("[OSTLeaderboard] Uploaded rank data succeeded, table_name=" + table_name + " id=" + ToString(player_id) + " score=" + ToString(score))
+        }
+    }
+
+    // 获取排行榜表的可见性
+    func ui_get_visible(id UUID) bool {
+        var ui = id2ui[id] as entity<CustomUI>
+        var player = id2player[id]
+        var widget = GetWidgetByPath(player, ui, "leaderboard")
+        return widget<UIWidget>.Active
+    }
+
+    // 设置排行榜表的可见性
+    func ui_set_visible(id UUID, visible bool) {
+        var ui = id2ui[id] as entity<CustomUI>
+        var player = id2player[id]
+        var widget = GetWidgetByPath(player, ui, "leaderboard")
+        widget<UIWidget>.Active = visible
+    }
+
+    // 在排行榜表中设置显示的数据
+    func ui_set_info(id UUID, index int, name string, score string, blue bool) {
+        var ui = id2ui[id] as entity<CustomUI>
+        var player = id2player[id]
+        var name_widget = GetWidgetByPath(player, ui, "leaderboard/panel/info/scroll/" + ToString(index) + "/name")
+        if name_widget == nil {
+            LogError("[OSTLeaderboard] Name widget not found for index=" + ToString(index))
+            return
+        }
+        name_widget<UIWidgetLabel>.Content = name
+
+        var score_widget = GetWidgetByPath(player, ui, "leaderboard/panel/info/scroll/" + ToString(index) + "/point")
+        if score_widget == nil {
+            LogError("[OSTLeaderboard] Score widget not found for index=" + ToString(index))
+            return
+        }
+        score_widget<UIWidgetLabel>.Content = score
+
+        var blue_widget = GetWidgetByPath(player, ui, "leaderboard/panel/info/scroll/" + ToString(index) + "/bg")
+        if blue_widget == nil {
+            LogError("[OSTLeaderboard] background widget not found for index=" + ToString(index))
+            return
+        }
+        if blue {
+            blue_widget<UIWidgetImage>.Color = #325E81
+        } else {
+            blue_widget<UIWidgetImage>.Color = #000000
+        }
+    }
+
+    // 设置为玩家自己显示的信息
+    func ui_set_info_mine(id UUID, name string, score string) {
+        var ui = id2ui[id] as entity<CustomUI>
+        var player = id2player[id]
+        var name_widget = GetWidgetByPath(player, ui, "/leaderboard/panel/mine/name")
+        if name_widget == nil {
+            LogError("[OSTLeaderboard] Name widget not found for mine")
+            return
+        }
+        name_widget<UIWidgetLabel>.Content = name
+
+        var score_widget = GetWidgetByPath(player, ui, "/leaderboard/panel/mine/point")
+        if score_widget == nil {
+            LogError("[OSTLeaderboard] Score widget not found for mine")
+            return
+        }
+        score_widget<UIWidgetLabel>.Content = score
+    }
+
+    // 将面板上的数据更新为对应排行榜数据
+    func ui_set_info_full(id UUID, score_type int) {
+        // 触发排序
+        var score_ascending bool = RANK_TABLE_ASCENDING[score_type]
+        sort_rank_list(score_type, score_ascending)
+
+        // 设置排行榜数据
+        var list List<UUID> = rank_lists[score_type]
+        var len int = List.Length(list)
+        for (i = 1, 11, 1) {
+            if i > len {
+                ui_set_info(id, i, "-", "-", false)
+                continue
+            }
+
+            var current_id UUID = list[i - 1]
+            var name string = id2name[current_id]
+            var score int = player_score_get(current_id, score_type)
+            if score_ascending && score >= 999999 {
+                ui_set_info(id, i, "-", "-", false)
+                continue
+            } else {
+                ui_set_info(id, i, name, format_score(score, RANK_TABLE_DISPLAY_FORMAT[score_type]), current_id == id)
+            }
+        }
+
+        // 设置玩家自己的信息
+        var my_score int = player_score_get(id, score_type)
+        if score_ascending && my_score >= 999999 {
+            ui_set_info_mine(id, id2name[id], "-")
+        } else {
+            ui_set_info_mine(id, id2name[id], format_score(my_score, RANK_TABLE_DISPLAY_FORMAT[score_type]))
+        }
+
+        // 设置标签高亮
+        for current_list_id = 0, List.Length(RANK_TABLE_NAMES), 1 {
+            if current_list_id == score_type {
+                ui_set_tab_highlight(id, current_list_id, true)
+            } else {
+                ui_set_tab_highlight(id, current_list_id, false)
+            }
+        }
+    }
+
+    // 设置排行榜表的标签高亮样式
+    func ui_set_tab_highlight(id UUID, score_type int, highlight bool) {
+        var ui = id2ui[id] as entity<CustomUI>
+        var player = id2player[id]
+        
+        var widget_button_path string = "/leaderboard/tab/" + ToString(score_type) + "/btn"
+        var widget_label_path string = "/leaderboard/tab/" + ToString(score_type) + "/txt"
+
+        var widget_button = GetWidgetByPath(player, ui, widget_button_path)
+        if widget_button == nil {
+            LogError("[OSTLeaderboard] Tab widget not found score_type=" + ToString(score_type))
+            return
+        }
+
+        var widget_label = GetWidgetByPath(player, ui, widget_label_path)
+        if widget_label == nil {
+            LogError("[OSTLeaderboard] Tab label widget not found score_type=" + ToString(score_type))
+            return
+        }
+
+        if highlight {
+            widget_button<UIWidgetButton>.Alpha = 1
+            widget_label<UIWidgetLabel>.Color = #000000
+
+        } else {
+            widget_button<UIWidgetButton>.Alpha = 0
+            widget_label<UIWidgetLabel>.Color = #FFFFFF
+        }
+    }
+
+    // 设置玩家分数
+    func player_score_set(player_id object, score_type int, score int) {
+        if score_type < 0 || score_type >= List.Length(RANK_TABLE_NAMES) {
+            LogError("[OSTLeaderboard] Score type not found score_type=" + ToString(score_type))
+            return
+        }
+
+        var key string = ToString(player_id) + "|" + ToString(score_type)
+        id2score[key] = score
+        _list_need_sort[score_type] = true
+    }
+
+    // 读取玩家分数
+    func player_score_get(player_id UUID, score_type int) int {
+        if score_type < 0 || score_type >= List.Length(RANK_TABLE_NAMES) {
+            LogError("[OSTLeaderboard] Score type not found score_type=" + score_type)
+            return 0
+        }
+
+        var key string = ToString(player_id) + "|" + ToString(score_type)
+        if !Map.ContainKey(id2score, key) {
+            LogWarning("[OSTLeaderboard] Score not found for id=" + ToString(player_id) + " score_type=" + ToString(score_type))
+            player_score_reset(player_id, score_type)
+        }
+
+        return id2score[key]
+    }
+
+    // 重置玩家分数
+    func player_score_reset(id UUID, score_type int) {
+        if score_type < 0 || score_type >= List.Length(RANK_TABLE_NAMES) {
+            LogError("[OSTLeaderboard] Score type not found score_type=" + ToString(score_type))
+            return
+        }
+
+        var ascending bool = RANK_TABLE_ASCENDING[score_type]
+        if ascending {
+            player_score_set(id, score_type, 999999)
+        } else {
+            player_score_set(id, score_type, 0)
+        }
+    }
+
+    // 读取玩家排名
+    func player_rank_get(id UUID, score_type int) int {
+        if score_type < 0 || score_type >= List.Length(RANK_TABLE_NAMES) {
+            LogError("[OSTLeaderboard] Score type not found score_type=" + ToString(score_type))
+            return -1
+        }
+
+        var list List<UUID> = rank_lists[score_type]
+        var r int = List.IndexOf(list, id)
+        if r == -1 {
+            LogError("[OSTLeaderboard] Rank not found for id=" + ToString(id) + " and score_type=" + ToString(score_type))
+            return -1
+        }
+
+        return r + 1
+    }
+
+    func player_upload_data(player entity<Player>) {
+        var player_id UUID = player<Player>.UserUID
+        LogInfo("[OSTLeaderboard] Player quit UUID=" + ToString(player_id))
+
+        // 校验周期是否过期，如果过期则不上传
+        var my_timestamp int = id2timestamp[player_id]
+        var my_phase int = period_phase(my_timestamp)
+        var server_phase int = period_phase(GetServerTimestamp())
+        if my_phase != server_phase {
+            LogWarning("[OSTLeaderboard] Period phase mismatch and skip upload, UUID=" + ToString(player_id) + " my_phase=" + ToString(my_phase) + " server_phase=" + ToString(server_phase))
+            return
+        }
+        
+        // 上传玩家数据
+        var nickname string = player<Player>.NickName
+        var score_0 int = player_score_get(player_id, 0)
+        var score_1 int = player_score_get(player_id, 1)
+        var score_2 int = player_score_get(player_id, 2)
+        var score_3 int = player_score_get(player_id, 3)
+        var score_4 int = player_score_get(player_id, 4)
+        data_table_upload(player_id, VERSION, my_timestamp, nickname, score_0, score_1, score_2, score_3, score_4)
+
+        // 上传排行榜数据
+        var AB_index int = period_AB_index(my_timestamp)
+        data_upload_rank(player_id, 0, score_0, AB_index)
+        data_upload_rank(player_id, 1, score_1, AB_index)
+        data_upload_rank(player_id, 2, score_2, AB_index)
+        data_upload_rank(player_id, 3, score_3, AB_index)
+        data_upload_rank(player_id, 4, score_4, AB_index)
+
+        LogInfo("[OSTLeaderboard] Player quit upload data succeeded")
+    }
+
+    // 实现冒泡排序，返回排序后的列表
+    func sort_rank_list(score_type int, ascending bool) {
+        if !_list_need_sort[score_type] {
+            return
+        }
+        _list_need_sort[score_type] = false
+        
+        var list List<UUID> = rank_lists[score_type]
+        // 类型检查
+        for index, value in list {
+            if GetType(value) != typeof(string) {
+                LogError("[OSTLeaderboard] List contains non-UUID value=" + ToString(value))
+            }
+        }
+
+        var len int = List.Length(list)
+        for (i = 0, len, 1) {
+            for (j = 0, len - i - 1, 1) {
+                var id1 UUID = list[j]
+                var score1 int = player_score_get(id1, score_type)
+                var id2 UUID = list[j + 1]
+                var score2 int = player_score_get(id2, score_type)
+                if (ascending && score1 > score2) || (!ascending && score1 < score2) {
+                    var temp UUID = list[j]
+                    list[j] = list[j + 1]
+                    list[j + 1] = temp
+                }
+            }
+        }
+    }
+
+    // 格式化分数，根据display_format的值，将分数格式化为不同的形式
+    // display_format = 0 时，分数为整数
+    // display_format = 1 时，分数为小数，保留3位小数
+    func format_score(score int, display_format int) string {
+        if display_format == 0 {
+            return ToString(score)
+        } else {
+            return Format("%.3fs", List<object>{0.001 * score})
+        }
+    }
+
+    // ================ 响应回调函数 ================
+    func handle_leaderboard_switch_visible(id UUID) {
+        var visible = ui_get_visible(id)
+        var tab_index int = 0
+        if Map.ContainKey(id2tab_index, id) {
+            tab_index = id2tab_index[id]
+        }
+        handle_tab_pressed(id, tab_index)
+        ui_set_visible(id, !visible)
+    }
+
+    func handle_tab_pressed(id UUID, score_type int) {
+        if score_type < 0 || score_type >= List.Length(RANK_TABLE_NAMES) {
+            LogError("[OSTLeaderboard] Tab not found score_type=" + ToString(score_type))
+            return
+        }
+        id2tab_index[id] = score_type
+        ui_set_info_full(id, score_type)
+    }
+
+    // ================ 单元测试函数 ================
+    
+    // 测试用，设置玩家分数，应该在所有玩家处显示此玩家的数据
+    func test_score_set(player_id UUID) {
+        LogInfo("[OSTLeaderboard] 设置玩家分数测试，UUID=" + ToString(player_id))
+
+        player_score_set(player_id, 0, RandomInt(0, 9999))
+        player_score_set(player_id, 1, RandomInt(0, 9999))
+        player_score_set(player_id, 2, RandomInt(0, 9999))
+        player_score_set(player_id, 3, RandomInt(0, 9999))
+        player_score_set(player_id, 4, RandomInt(0, 9999))
+    }
+
+    func test_unit_test_1() {
+        LogInfo("[OSTLeaderboard] 开始运行单元测试...")
+        
+        // 测试1：分数格式化
+        var time_score int = 1234  // 1.234秒
+        var formatted_score string = format_score(time_score, 1)
+        if formatted_score != "1.234s" {
+            LogError("[OSTLeaderboard] 测试1失败：时间格式化不正确，期望=1.234s，实际=" + formatted_score)
+        } else {
+            LogInfo("[OSTLeaderboard] 测试1通过：分数格式化正常")
+        }
+        
+        // 测试2：时间相关函数
+        var current_time int = GetServerTimestamp()
+        var ab_index int = period_AB_index(current_time)
+        var phase int = period_phase(current_time)
+        
+        if ab_index < 0 || ab_index > 1 {
+            LogError("[OSTLeaderboard] 测试2失败：AB榜索引计算错误，实际=" + ToString(ab_index))
+        } else if phase < 0 {
+            LogError("[OSTLeaderboard] 测试2失败：周期计算错误，实际=" + ToString(phase))
+        } else {
+            LogInfo("[OSTLeaderboard] 测试2通过：时间相关函数正常")
+        }
+        
+        // 测试3：数据表名称检查
+        if List.Length(RANK_TABLE_NAMES) != 5 {
+            LogError("[OSTLeaderboard] 测试3失败：排行榜表数量不正确，期望=5，实际=" + ToString(List.Length(RANK_TABLE_NAMES)))
+        } else {
+            LogInfo("[OSTLeaderboard] 测试3通过：排行榜表配置正常")
+        }
+        
+        // 测试4：排序设置检查
+        if List.Length(RANK_TABLE_ASCENDING) != 5 {
+            LogError("[OSTLeaderboard] 测试4失败：排序设置数量不正确，期望=5，实际=" + ToString(List.Length(RANK_TABLE_ASCENDING)))
+        } else {
+            LogInfo("[OSTLeaderboard] 测试4通过：排序设置配置正常")
+        }
+        
+        // 测试5：显示格式检查
+        if List.Length(RANK_TABLE_DISPLAY_FORMAT) != 5 {
+            LogError("[OSTLeaderboard] 测试5失败：显示格式数量不正确，期望=5，实际=" + ToString(List.Length(RANK_TABLE_DISPLAY_FORMAT)))
+        } else {
+            LogInfo("[OSTLeaderboard] 测试5通过：显示格式配置正常")
+        }
+        
+        LogInfo("[OSTLeaderboard] 单元测试完成")
+    }
+}

@@ -1,0 +1,27 @@
+import "StdLibrary.fcc" as StdLib
+import "EditorGenLib.fcc" as EditorLib
+import "Player.fcc" as Player
+import "Convert.fcc" as Convert
+
+import "../OSTLeaderboard/OSTLeaderboard.fcg" as OSTLeaderboard
+
+graph Script {
+    event OnPlayerJoin(player entity<Player>) {
+        // 等待1秒确保系统初始化完成
+        WaitForMillisecond(1000)
+
+        // 运行单元测试
+        globalEntity<OSTLeaderboard>.test_unit_test_1()
+
+        // 获取玩家当前分数
+        var score = globalEntity<OSTLeaderboard>.player_score_get(player<Player>.UserUID, 0)
+        LogInfo("[排行榜] 玩家 " + player<Player>.UserUID + " 当前分数: " + ToString(score))
+        
+        // 增加玩家分数
+        globalEntity<OSTLeaderboard>.player_score_set(player<Player>.UserUID, 0, score + 1)
+        
+        // 获取更新后的分数并记录
+        score = globalEntity<OSTLeaderboard>.player_score_get(player<Player>.UserUID, 0)
+        LogInfo("[排行榜] 玩家 " + player<Player>.UserUID + " 更新后分数: " + ToString(score))
+    }
+}
