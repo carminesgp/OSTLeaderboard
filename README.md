@@ -3,6 +3,8 @@
 > CraftlandStudio Version: v1.13.1(3693570)
 > Author: carminesgp
 
+![排行榜预览](preview.png)
+
 # 概要
 1. 提供API供写入玩家分数和实时查询
 2. 进入游戏后自动拉取服务器数据，本地即时更新，之后适时上传回服务器
